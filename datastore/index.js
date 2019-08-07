@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const _ = require('underscore');
 const counter = require('./counter');
-
+const Promise = require('bluebird');
 
 // Public API - Fix these CRUD functions ///////////////////////////////////////
 
@@ -20,16 +20,23 @@ exports.create = (text, callback) => {
 };
 
 exports.readAll = (callback) => {
-  fs.readdir(exports.dataDir, (err, files)=>{
-    files = files.map((name) => ({id: name, text: name}));
-    callback(err, files);
-  })
+  Promise.promisifyAll(fs);
+
+  fs.readdirAsync(exports.dataDir)
+    .then(files => files.map(file => fs.readFileAsync(`${exports.dataDir}/${file}`, 'utf8')
+    .then(text => ({id: file, text: text}))))
+    .then(file => Promise.all(file))
+    .then(list => callback(null, list))
 };
 
 exports.readOne = (id, callback) => {
   fs.readFile(`${exports.dataDir}/${id}.txt`, 'utf8', (err, data) => {
-    const fileRead = {id, text: data}
-    callback(err, fileRead);
+    if (err){
+      callback(err);
+    }else{
+      const fileRead = {id, text: data}
+      callback(null, fileRead);
+    }
   })
 };
 
@@ -39,7 +46,7 @@ exports.update = (id, text, callback) => {
         callback('The id does not exist.');
     }else{
       fs.writeFile(`${exports.dataDir}/${id}.txt`, text, (err, data) => {
-        callback(err, data);
+        callback(null, data);
       })
     }
   });
@@ -51,7 +58,7 @@ exports.delete = (id, callback) => {
     if (err){
       callback('The id does not exist.')
     } else {
-      callback(err, data);
+      callback(null, data);
     }
   });
 };
